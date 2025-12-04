@@ -10,22 +10,21 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u4}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
-var factory = new ConnectionFactory() { HostName = "121.36.58.218", Port = 5672, VirtualHost = "vei", CredentialsProvider = new BasicCredentialsProvider("sap-test", userName: "sap-test", password: "Xiangaimima@1") };
+var factory = new ConnectionFactory() { HostName = "121.36.58.218", Port = 5671, VirtualHost = "vei", CredentialsProvider = new BasicCredentialsProvider("root", userName: "root", password: "Xiangaimima@1") };
 using var connection = await factory.CreateConnectionAsync();
 using var publishChannel = await connection.CreateChannelAsync();
-Log.Information("RabbitMQ: Publish Channel Created!");
+Log.Information("RabbitMQ: Publish Channel Ready!");
 using var consumeChannel = await connection.CreateChannelAsync();
-Log.Information("RabbitMQ: Consumer Channel Created!");
-
+Log.Information("RabbitMQ: Consumer Channel Ready!");
 
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseSerilog();
+//builder.Host.UseSerilog();
 
 // Add services to the container.
 
 var app = builder.Build();
-app.UseSerilogRequestLogging();
+//app.UseSerilogRequestLogging();
 
 // Configure the HTTP request pipeline.
 
@@ -59,7 +58,7 @@ app.MapPost("/sendmessage", async (HttpRequest request) =>
     
     await publishChannel.BasicPublishAsync(exchange: "default",
                          routingKey: "6000170.master-data.create",
-                         body: body,);
+                         body: body);
     Log.Information("Sent message to RabbitMQ: {Message}", message);
     return Results.Ok(new { Status = "Message sent to RabbitMQ", Message = message });
 });
