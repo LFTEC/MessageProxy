@@ -1,11 +1,12 @@
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using Serilog;
 using Serilog.Events;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Xml.Linq;
+using System.Net.Http;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -225,7 +226,32 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
         _publish_channel = await _connection.CreateChannelAsync();
         Log.Information("RabbitMQ: Publish Channel Ready!");
         _consume_channel = await _connection.CreateChannelAsync();
-        Log.Information("RabbitMQ: Consumer Channel Ready!");        
+        Log.Information("RabbitMQ: Consumer Channel Ready!");
+
+        var consumer = new AsyncEventingBasicConsumer(_consume_channel);
+        consumer.ReceivedAsync += (model, ea) =>
+        {
+            var body = ea.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            var routingKey = ea.RoutingKey;
+
+            var node = JsonNode.Parse(message);
+            if(node is JsonObject obj)
+            {
+                obj.Add("routingKey", routingKey);
+            }
+            else
+            {
+                Log.Error("Received message is not a JsonObject");
+            }
+                
+            return Task.CompletedTask;
+        };
+    }
+
+    public async Task SendCallbackAsync()
+    {
+
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
