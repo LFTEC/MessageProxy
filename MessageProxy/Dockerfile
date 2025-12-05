@@ -24,6 +24,8 @@ RUN dotnet publish "./MessageProxy.csproj" -c $BUILD_CONFIGURATION -o /app/publi
 
 # 此阶段在生产中使用，或在常规模式下从 VS 运行时使用(在不使用调试配置时为默认值)
 FROM base AS final
+ARG ASPNETCORE_ENVIRONMENT=Stage
+ENV ASPNETCORE_ENVIRONMENT=$ASPNETCORE_ENVIRONMENT
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "MessageProxy.dll"]

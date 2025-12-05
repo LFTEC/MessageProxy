@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
-using System.Text;
 using Serilog;
 using Serilog.Events;
-using System.Text.Json.Nodes;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Xml.Linq;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -12,19 +14,12 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u4}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
-var factory = new ConnectionFactory() { HostName = "121.36.58.218", Port = 5671, VirtualHost = "vei", CredentialsProvider = new BasicCredentialsProvider("root", userName: "root", password: "Xiangaimima@1" ), Ssl = new SslOption { 
-    Enabled = true,
-    Version = System.Security.Authentication.SslProtocols.Tls12,
-    CertificateValidationCallback = (a, b, c, d) => true
-} };
-using var connection = await factory.CreateConnectionAsync();
-using var publishChannel = await connection.CreateChannelAsync();
-Log.Information("RabbitMQ: Publish Channel Ready!");
-using var consumeChannel = await connection.CreateChannelAsync();
-Log.Information("RabbitMQ: Consumer Channel Ready!");
-
-
 var builder = WebApplication.CreateBuilder(args);
+var configuration = builder.Configuration;
+builder.Services.Configure<RabbitMQConnectionOptions>(configuration.GetSection("RabbitMQ"));
+builder.Services.AddSingleton<MessageProxyService>();
+builder.Services.AddSingleton<IMessageProxyService>(sp => sp.GetRequiredService<MessageProxyService>());
+builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<MessageProxyService>());
 builder.Host.UseSerilog();
 
 // Add services to the container.
@@ -41,7 +36,7 @@ var basicProperties = new BasicProperties()
     ContentType = "application/json"
 };
 
-app.MapPost("/sendmessage", async (HttpRequest request) =>
+app.MapPost("/sendmessage", async (HttpRequest request, IMessageProxyService proxy) =>
 { 
     var routingKey = request.Query["routingKey"].ToString();
     if (routingKey == null || routingKey.Length == 0)
@@ -73,27 +68,85 @@ app.MapPost("/sendmessage", async (HttpRequest request) =>
         return Results.BadRequest(new { state = "E", error = "E004", message = "Missing traceId query parameter" });
     }
 
+    var dataType = request.Query["dataType"].ToString();
+    if(dataType == null || dataType.Length == 0)
+    {
+        dataType = "object";
+    }
+    else if( dataType != "object" && dataType != "array")
+    {
+        Log.Information("incorrect dataType passed");
+        return Results.BadRequest(new { state = "E", error = "E005", message = "incorrect dataType passed" });
+    }
+
 
     try
     {
         using var reader = new StreamReader(request.Body, Encoding.UTF8);
         var body = await reader.ReadToEndAsync();
-        JsonNode? node = null;
-        if(!string.IsNullOrWhiteSpace(body))
-            node = JsonNode.Parse(body);
-        var message = new Message(msgType, source, version, traceId, node);
-        var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true });
+        List<JsonNode> nodes = new List<JsonNode>();
+        if (dataType == "array")
+        {
+            var node = JsonNode.Parse(body);
+            if (node is not JsonArray)
+            {
+                Log.Information("dataType is array but body is not JsonArray");
+                return Results.BadRequest(new { state = "E", error = "E006", message = "dataType is array but body is not JsonArray" });
+            }
+            else
+            {
+                foreach (var item in node.AsArray())
+                {
+                    nodes.Add(item!);
+                }
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(body))
+        {
+            var node = JsonNode.Parse(body);
+            nodes.Add(node!);
+        }
 
-        var objMessage = Encoding.UTF8.GetBytes(jsonMessage);
-        await publishChannel.BasicPublishAsync(exchange: "default",
-                         routingKey: routingKey,
-                         body: objMessage,
-                         mandatory: false,
-                         basicProperties: basicProperties);
-        Log.Information($"Message sent! {message.msgId}");
+        if(nodes.Count == 0)
+        {
+            var message = new Message(msgType, source, version, traceId, null);
+            var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true });
+
+            var objMessage = Encoding.UTF8.GetBytes(jsonMessage);
+            await proxy.PublishAsync(exchange: "default",
+                                routingKey: routingKey,
+                                body: objMessage);
+            Log.Information($"Message sent! {message.msgId}");
+        }
+        else
+        {
+            List<Task> tasks = new List<Task>();
+            nodes.ForEach((node) =>
+            {
+                var message = new Message(msgType, source, version, traceId, node);
+                var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true });
+                var objMessage = Encoding.UTF8.GetBytes(jsonMessage);
+                tasks.Add(proxy.PublishAsync(exchange: "default",
+                                    routingKey: routingKey,
+                                    body: objMessage).ContinueWith(t =>
+                                    {
+                                        if (t.IsCompletedSuccessfully)
+                                        {
+                                            Log.Information($"Message sent! {message.msgId}");
+                                        }
+                                        else if (t.IsFaulted)
+                                        {
+                                            Log.Error($"Message send failed! {message.msgId}, Error: {t.Exception?.GetBaseException().Message}");
+                                        }
+                                    }));
+            });
+
+            Task.WaitAll(tasks.ToArray());
+        }
+
         return Results.Ok();
     }
-    catch(JsonException ex)
+    catch (JsonException ex)
     {
         Log.Information("Body resolve error, check data: {0}", ex.Message);
         return Results.BadRequest(new { state = "E", error = "E005", message = "Body resolve error" });
@@ -105,11 +158,103 @@ app.MapPost("/sendmessage", async (HttpRequest request) =>
 app.Run();
 
 
-
+internal class RabbitMQConnectionOptions
+{    
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; }
+    public string VirtualHost { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public bool SslEnabled { get; set; }
+}
 
 internal record Message(string msgType, string source, string version, string traceId, JsonNode? body)
 {
     public string msgId => System.Guid.NewGuid().ToString();
 
     public DateTime timestamp => DateTime.UtcNow;
+}
+
+internal interface IMessageProxyService
+{
+    Task PublishAsync(string exchange, string routingKey, byte[] body);
+}
+
+internal class MessageProxyService: IMessageProxyService, IHostedService, IAsyncDisposable
+{
+    private readonly RabbitMQConnectionOptions _options;
+    private IConnection? _connection;
+    private IChannel? _publish_channel;
+    private IChannel? _consume_channel;
+
+    private BasicProperties _basicProperties;
+
+    public MessageProxyService(IOptions<RabbitMQConnectionOptions> options)
+    {
+        _options = options.Value;
+
+        _basicProperties = new BasicProperties()
+        {
+            DeliveryMode = DeliveryModes.Persistent,
+            Expiration = "86400000",
+            ContentType = "application/json"
+        };
+    }
+
+    public async Task PublishAsync(string exchange, string routingKey, byte[] body)
+    {
+        await _publish_channel!.BasicPublishAsync(exchange, routingKey, body: body, mandatory: false, basicProperties: _basicProperties);
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        var factory = new ConnectionFactory()
+        {
+            HostName = _options.Host,
+            Port = _options.Port,
+            VirtualHost = _options.VirtualHost,
+            CredentialsProvider = new BasicCredentialsProvider(_options.UserName, userName: _options.UserName, password: _options.Password),
+            Ssl = new SslOption
+            {
+                Enabled = _options.SslEnabled,
+                Version = System.Security.Authentication.SslProtocols.Tls12,
+                CertificateValidationCallback = (a, b, c, d) => true
+            }
+        };
+        _connection = await factory.CreateConnectionAsync();
+        _publish_channel = await _connection.CreateChannelAsync();
+        Log.Information("RabbitMQ: Publish Channel Ready!");
+        _consume_channel = await _connection.CreateChannelAsync();
+        Log.Information("RabbitMQ: Consumer Channel Ready!");
+
+        
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (_publish_channel is not null)
+            await _publish_channel.CloseAsync(cancellationToken);
+
+        if (_consume_channel is not null)
+            await _consume_channel.CloseAsync(cancellationToken);
+
+        if (_connection is not null)
+            await _connection.CloseAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_connection is not null)
+        {
+            // 确保连接在被释放前已经关闭
+            if (_connection.IsOpen)
+            {
+                await _connection.CloseAsync();
+            }
+            _connection.Dispose(); // 释放资源
+        }
+
+        // 避免重复终结
+        GC.SuppressFinalize(this);
+    }
 }
