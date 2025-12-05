@@ -3,10 +3,11 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Serilog;
 using Serilog.Events;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Net.Http;
+using System.Threading.Channels;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -229,7 +230,7 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
         Log.Information("RabbitMQ: Consumer Channel Ready!");
 
         var consumer = new AsyncEventingBasicConsumer(_consume_channel);
-        consumer.ReceivedAsync += (model, ea) =>
+        consumer.ReceivedAsync += async (model, ea) =>
         {
             var body = ea.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
@@ -239,18 +240,36 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
             if(node is JsonObject obj)
             {
                 obj.Add("routingKey", routingKey);
+                await SendCallbackAsync(obj);
             }
             else
             {
                 Log.Error("Received message is not a JsonObject");
             }
-                
-            return Task.CompletedTask;
         };
+
+        await _consume_channel.BasicConsumeAsync("dlx", autoAck: true, consumer: consumer);
     }
 
-    public async Task SendCallbackAsync()
+    public async Task SendCallbackAsync(JsonObject obj)
     {
+        HttpMessageHandler handler = new HttpClientHandler()
+        {
+            SslProtocols = System.Security.Authentication.SslProtocols.Tls12,
+            Credentials = new System.Net.NetworkCredential("ts2pi", "yantai001")
+
+        };
+        HttpClient client = new HttpClient(handler);
+
+        JsonObject payload = new JsonObject
+        {
+            ["data"] = obj,
+            ["timestamp"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            ["type"] = "API_DLX_CALLBACK"
+        };
+        client.BaseAddress = new Uri("http://jq1.whchem.com:8080/");
+        var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        var response = await client.PostAsync("RESTAdapter/1622/PeripheralWarehouse", content);
 
     }
 
