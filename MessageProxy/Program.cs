@@ -225,9 +225,7 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
         _publish_channel = await _connection.CreateChannelAsync();
         Log.Information("RabbitMQ: Publish Channel Ready!");
         _consume_channel = await _connection.CreateChannelAsync();
-        Log.Information("RabbitMQ: Consumer Channel Ready!");
-
-        
+        Log.Information("RabbitMQ: Consumer Channel Ready!");        
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
