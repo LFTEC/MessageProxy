@@ -19,9 +19,25 @@ Log.Logger = new LoggerConfiguration()
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 builder.Services.Configure<RabbitMQConnectionOptions>(configuration.GetSection("RabbitMQ"));
+builder.Services.Configure<CallbackOptions>(configuration.GetSection("Callback"));
 builder.Services.AddSingleton<MessageProxyService>();
 builder.Services.AddSingleton<IMessageProxyService>(sp => sp.GetRequiredService<MessageProxyService>());
 builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<MessageProxyService>());
+
+builder.Services.AddHttpClient<ICallbackService, CallbackService>((serviceProvider, client) =>
+{
+    var option = serviceProvider.GetRequiredService<IOptions<CallbackOptions>>();
+    client.BaseAddress = new Uri(option.Value.BaseUrl);
+}).ConfigurePrimaryHttpMessageHandler((serviceProvider) => 
+{
+    var option = serviceProvider.GetRequiredService<IOptions<CallbackOptions>>().Value;
+    return new HttpClientHandler()
+    {
+        SslProtocols = System.Security.Authentication.SslProtocols.Tls12,
+        Credentials = new System.Net.NetworkCredential(option.UserName, option.Password)
+    };
+});
+
 builder.Host.UseSerilog();
 
 // Add services to the container.
@@ -170,6 +186,13 @@ internal class RabbitMQConnectionOptions
     public bool SslEnabled { get; set; }
 }
 
+internal class CallbackOptions
+{
+    public string BaseUrl { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
 internal record Message(string msgType, string source, string version, string traceId, JsonNode? body)
 {
     public string msgId => System.Guid.NewGuid().ToString();
@@ -185,13 +208,14 @@ internal interface IMessageProxyService
 internal class MessageProxyService: IMessageProxyService, IHostedService, IAsyncDisposable
 {
     private readonly RabbitMQConnectionOptions _options;
+    private readonly ICallbackService _callbackService;
     private IConnection? _connection;
     private IChannel? _publish_channel;
     private IChannel? _consume_channel;
 
     private BasicProperties _basicProperties;
 
-    public MessageProxyService(IOptions<RabbitMQConnectionOptions> options)
+    public MessageProxyService(IOptions<RabbitMQConnectionOptions> options, ICallbackService callbackService)
     {
         _options = options.Value;
 
@@ -201,6 +225,8 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
             Expiration = "86400000",
             ContentType = "application/json"
         };
+
+        _callbackService = callbackService;
     }
 
     public async Task PublishAsync(string exchange, string routingKey, byte[] body)
@@ -232,6 +258,7 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
         var consumer = new AsyncEventingBasicConsumer(_consume_channel);
         consumer.ReceivedAsync += async (model, ea) =>
         {
+            Log.Information("DLX Message Received!");
             var body = ea.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
             var routingKey = ea.RoutingKey;
@@ -240,37 +267,15 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
             if(node is JsonObject obj)
             {
                 obj.Add("routingKey", routingKey);
-                await SendCallbackAsync(obj);
+                await _callbackService.SendCallbackAsync(obj);
             }
             else
             {
-                Log.Error("Received message is not a JsonObject");
+                Log.Error("Received message is not a JsonObject, dump it");
             }
         };
 
         await _consume_channel.BasicConsumeAsync("dlx", autoAck: true, consumer: consumer);
-    }
-
-    public async Task SendCallbackAsync(JsonObject obj)
-    {
-        HttpMessageHandler handler = new HttpClientHandler()
-        {
-            SslProtocols = System.Security.Authentication.SslProtocols.Tls12,
-            Credentials = new System.Net.NetworkCredential("ts2pi", "yantai001")
-
-        };
-        HttpClient client = new HttpClient(handler);
-
-        JsonObject payload = new JsonObject
-        {
-            ["data"] = obj,
-            ["timestamp"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-            ["type"] = "API_DLX_CALLBACK"
-        };
-        client.BaseAddress = new Uri("http://jq1.whchem.com:8080/");
-        var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("RESTAdapter/1622/PeripheralWarehouse", content);
-
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -299,5 +304,38 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
 
         // ±‹√‚÷ÿ∏¥÷’Ω·
         GC.SuppressFinalize(this);
+    }
+}
+
+internal interface ICallbackService
+{
+    Task SendCallbackAsync(JsonObject obj);
+}
+
+internal class CallbackService : ICallbackService
+{
+    private readonly HttpClient _client;
+
+    public CallbackService(HttpClient client)
+    {
+        _client = client;
+    }
+
+    public async Task SendCallbackAsync(JsonObject obj)
+    {
+        Log.Information("Sending DLX callback...");
+        JsonObject payload = new JsonObject
+        {
+            ["data"] = obj,
+            ["timestamp"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            ["type"] = "API_DLX_CALLBACK"
+        };
+
+        
+        var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        var response = await _client.PostAsync("RESTAdapter/1622/PeripheralWarehouse", content);
+        response.EnsureSuccessStatusCode();
+
+        Log.Information("DLX callback sent successfully.");
     }
 }
