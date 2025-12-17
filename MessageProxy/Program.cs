@@ -5,6 +5,7 @@ using Serilog;
 using Serilog.Events;
 using System.Net.Http;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
@@ -128,7 +129,7 @@ app.MapPost("/sendmessage", async (HttpRequest request, IMessageProxyService pro
         if(nodes.Count == 0)
         {
             var message = new Message(msgType, source, version, traceId, null);
-            var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true });
+            var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
 
             var objMessage = Encoding.UTF8.GetBytes(jsonMessage);
             await proxy.PublishAsync(exchange: "default",
@@ -142,7 +143,7 @@ app.MapPost("/sendmessage", async (HttpRequest request, IMessageProxyService pro
             nodes.ForEach((node) =>
             {
                 var message = new Message(msgType, source, version, traceId, node);
-                var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true });
+                var jsonMessage = JsonSerializer.Serialize(message, new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
                 var objMessage = Encoding.UTF8.GetBytes(jsonMessage);
                 tasks.Add(proxy.PublishAsync(exchange: "default",
                                     routingKey: routingKey,
@@ -332,7 +333,7 @@ internal class CallbackService : ICallbackService
         };
 
         
-        var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        var content = new StringContent(payload.ToJsonString(new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, WriteIndented = true}), Encoding.UTF8, "application/json");
         var response = await _client.PostAsync("RESTAdapter/1622/PeripheralWarehouse", content);
         response.EnsureSuccessStatusCode();
 
