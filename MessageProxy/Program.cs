@@ -172,10 +172,54 @@ app.MapPost("/sendmessage", async (HttpRequest request, IMessageProxyService pro
     } 
 });
 
+app.MapPost("/mip", async (MIPInputData data) =>
+{
+
+});
+
 
 
 app.Run();
 
+internal class MIPInputData
+{
+    internal List<Reservation> Reservations { get; private set; } = new List<Reservation>();
+
+    internal List<Vendor> Vendors { get; private set; } = new List<Vendor>();
+    internal Parameters Params { get; set; } = new Parameters();
+
+    internal class Reservation
+    {
+        internal string ResNumber { get; set; } = string.Empty;
+        internal string ResItem { get; set; } = string.Empty;
+        internal string MatNo { get; set; } = string.Empty;
+        internal int Difficulty { get; set; }
+
+        internal decimal Quantity { get; set; }
+    }
+
+    internal class Vendor
+    {
+        internal string VendorNumber { get; set; } = string.Empty;
+        internal int Ability { get; set; }
+        internal List<Stock> Stocks { get; set; } = new List<Stock>();
+    }
+
+    internal class Stock
+    {
+        internal string MatNo { get; set; } = string.Empty;
+        internal decimal Quantity { get; set; }
+
+        internal decimal Offset { get; set; }
+    }
+
+    internal class Parameters
+    {
+        internal double ParamQty { get; set; }
+        internal double ParamVendor { get; set; }
+        internal double ParamOffset { get; set; }
+    }
+}
 
 internal class RabbitMQConnectionOptions
 {    
