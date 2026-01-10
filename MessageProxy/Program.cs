@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using static MIPInputData;
 
@@ -29,6 +30,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
     options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
     options.SerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
     options.SerializerOptions.WriteIndented = true;
+    options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString;
 });
 
 builder.Services.AddSingleton<MessageProxyService>();
@@ -527,3 +529,4 @@ internal class CallbackService : ICallbackService
         Log.Information("DLX callback sent successfully.");
     }
 }
+
