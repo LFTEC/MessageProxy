@@ -1,3 +1,4 @@
+using Google.OrTools.LinearSolver;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -9,6 +10,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
+using static MIPInputData;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -21,9 +23,18 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 builder.Services.Configure<RabbitMQConnectionOptions>(configuration.GetSection("RabbitMQ"));
 builder.Services.Configure<CallbackOptions>(configuration.GetSection("Callback"));
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+    options.SerializerOptions.WriteIndented = true;
+});
+
 builder.Services.AddSingleton<MessageProxyService>();
 builder.Services.AddSingleton<IMessageProxyService>(sp => sp.GetRequiredService<MessageProxyService>());
 builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<MessageProxyService>());
+
 
 builder.Services.AddHttpClient<ICallbackService, CallbackService>((serviceProvider, client) =>
 {
@@ -174,6 +185,121 @@ app.MapPost("/sendmessage", async (HttpRequest request, IMessageProxyService pro
 
 app.MapPost("/mip", async (MIPInputData data) =>
 {
+    try
+    {
+        Solver solver = Solver.CreateSolver("SCIP");
+        if (solver == null)
+        {
+            return Results.BadRequest("无法创建求解器，请确保安装了 Google.OrTools");
+        }
+
+        Variable[,] x = new Variable[data.Vendors.Count, data.Reservations.Count];
+        for (int i = 0; i < data.Vendors.Count; i++)
+        {
+            for (int j = 0; j < data.Reservations.Count; j++)
+            {
+                x[i, j] = solver.MakeNumVar(0, double.PositiveInfinity, $"x_{i}_{j}");
+            }
+        }
+
+        Variable[] y = new Variable[data.Vendors.Count];
+        for (int i = 0; i < data.Vendors.Count; i++)
+        {
+            y[i] = solver.MakeBoolVar($"y_{i}");
+        }
+
+        for (int j = 0; j < data.Reservations.Count; j++)
+        {
+            Constraint demandConstraint = solver.MakeConstraint(0, Convert.ToDouble(data.Reservations[j].Quantity), $"demand_{j}");
+            for (int i = 0; i < data.Vendors.Count; i++)
+            {
+                demandConstraint.SetCoefficient(x[i, j], 1);
+            }
+        }
+
+        for (int i = 0; i < data.Vendors.Count; i++)
+        {
+            for (int j = 0; j < data.Vendors[i].Stocks.Count; j++)
+            {
+                Constraint stockConstraint = solver.MakeConstraint(-double.PositiveInfinity, 0, $"stock_{i}_{j}");
+                for (int k = 0; k < data.Reservations.Count; k++)
+                {
+                    if (data.Reservations[k].MatNo == data.Vendors[i].Stocks[j].MatNo)
+                        stockConstraint.SetCoefficient(x[i, k], 1);
+                }
+                stockConstraint.SetCoefficient(y[i], -Convert.ToDouble(data.Vendors[i].Stocks[j].Quantity));
+            }
+        }
+
+        double W_QTY = data.Params.ParamQty;
+        double W_PPL = data.Params.ParamVendor;
+        double W_VAL = data.Params.ParamOffset;
+
+        Objective objective = solver.Objective();
+
+        for (int i = 0; i < data.Vendors.Count; i++)
+        {
+            objective.SetCoefficient(y[i], -W_PPL);
+
+            for (int j = 0; j < data.Reservations.Count; j++)
+            {
+                var mat = data.Vendors[i].Stocks.First(s => s.MatNo == data.Reservations[j].MatNo);
+                double coeff = W_QTY + (W_VAL * Convert.ToDouble(mat.Offset));
+                coeff += data.Vendors[i].Ability >= data.Reservations[j].Difficulty ? W_QTY : 0.0;
+                objective.SetCoefficient(x[i, j], coeff);
+            }
+        }
+
+        objective.SetMaximization();
+
+        Solver.ResultStatus resultStatus = solver.Solve();
+
+        if (resultStatus == Solver.ResultStatus.OPTIMAL)
+        {
+            MIPOutputData outputData = new MIPOutputData();
+            decimal totalAllocated = 0m;
+            int vendorUsed = 0;
+
+            for (int i = 0; i < data.Vendors.Count; i++)
+            {
+                if (y[i].SolutionValue() > 0.5)
+                {
+                    vendorUsed++;
+
+                    for (int j = 0; j < data.Reservations.Count; j++)
+                    {
+                        decimal count = Convert.ToDecimal(x[i, j].SolutionValue());
+                        if (count > 0.001m)
+                        {
+                            outputData.Allocations.Add(new MIPOutputData.ResAllocation
+                            {
+                                MatNo = data.Reservations[j].MatNo,
+                                AllocatedQuantity = count,
+                                ResNumber = data.Reservations[j].ResNumber,
+                                ResItem = data.Reservations[j].ResItem,
+                                VendorNumber = data.Vendors[i].VendorNumber
+                            });
+
+                            totalAllocated += count;
+                        }
+                    }
+                }
+            }
+
+            outputData.TotalVendorsUsed = vendorUsed;
+            outputData.TotalQuantityAllocated = totalAllocated;
+
+            return Results.Ok(outputData);
+        }
+        else
+        {
+            return Results.BadRequest("无法找到最优解。");
+        }
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"求解过程中发生错误: {ex.Message}");
+    }
 
 });
 
@@ -181,45 +307,62 @@ app.MapPost("/mip", async (MIPInputData data) =>
 
 app.Run();
 
-internal class MIPInputData
+public class MIPInputData
 {
-    internal List<Reservation> Reservations { get; private set; } = new List<Reservation>();
+    public List<Reservation> Reservations { get; set; } = new List<Reservation>();
 
-    internal List<Vendor> Vendors { get; private set; } = new List<Vendor>();
-    internal Parameters Params { get; set; } = new Parameters();
+    public List<Vendor> Vendors { get; set; } = new List<Vendor>();
+    public Parameters Params { get; set; } = new Parameters();
 
-    internal class Reservation
+    public class Reservation
     {
-        internal string ResNumber { get; set; } = string.Empty;
-        internal string ResItem { get; set; } = string.Empty;
-        internal string MatNo { get; set; } = string.Empty;
-        internal int Difficulty { get; set; }
+        public string ResNumber { get; set; } = string.Empty;
+        public string ResItem { get; set; } = string.Empty;
+        public string MatNo { get; set; } = string.Empty;
+        public int Difficulty { get; set; }
 
-        internal decimal Quantity { get; set; }
+        public decimal Quantity { get; set; }
     }
 
-    internal class Vendor
+    public class Vendor
     {
-        internal string VendorNumber { get; set; } = string.Empty;
-        internal int Ability { get; set; }
-        internal List<Stock> Stocks { get; set; } = new List<Stock>();
+        public string VendorNumber { get; set; } = string.Empty;
+        public int Ability { get; set; }
+        public List<Stock> Stocks { get; set; } = new List<Stock>();
     }
 
-    internal class Stock
+    public class Stock
     {
-        internal string MatNo { get; set; } = string.Empty;
-        internal decimal Quantity { get; set; }
+        public string MatNo { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
 
-        internal decimal Offset { get; set; }
+        public decimal Offset { get; set; }
     }
 
-    internal class Parameters
+    public class Parameters
     {
-        internal double ParamQty { get; set; }
-        internal double ParamVendor { get; set; }
-        internal double ParamOffset { get; set; }
+        public double ParamQty { get; set; }
+        public double ParamVendor { get; set; }
+        public double ParamOffset { get; set; }
     }
 }
+
+public class MIPOutputData
+{
+    public int TotalVendorsUsed { get; set; }
+    public decimal TotalQuantityAllocated { get; set; }
+    public List<ResAllocation> Allocations { get; set; } = new List<ResAllocation>();
+
+    public class ResAllocation
+    {
+        public string MatNo { get; set; } = string.Empty;
+        public decimal AllocatedQuantity { get; set; }
+        public string ResNumber { get; set; } = string.Empty;
+        public string ResItem { get; set; } = string.Empty;
+        public string VendorNumber { get; set; } = string.Empty;
+    }
+}
+
 
 internal class RabbitMQConnectionOptions
 {    
