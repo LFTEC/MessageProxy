@@ -236,6 +236,7 @@ app.MapPost("/mip", async (MIPInputData data) =>
         double W_QTY = data.Params.ParamQty;
         double W_PPL = data.Params.ParamVendor;
         double W_VAL = data.Params.ParamOffset;
+        double W_PRI = 1000000.0d;
 
         Objective objective = solver.Objective();
 
@@ -339,6 +340,7 @@ public class MIPInputData
         public decimal Quantity { get; set; }
 
         public decimal Offset { get; set; }
+        public int Priority { get; set; }
     }
 
     public class Parameters
