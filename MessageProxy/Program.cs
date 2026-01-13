@@ -236,7 +236,6 @@ app.MapPost("/mip", async (MIPInputData data) =>
         double W_QTY = data.Params.ParamQty;
         double W_PPL = data.Params.ParamVendor;
         double W_VAL = data.Params.ParamOffset;
-        double W_PRI = 1000000.0d;
 
         Objective objective = solver.Objective();
 
@@ -248,6 +247,7 @@ app.MapPost("/mip", async (MIPInputData data) =>
             {
                 var mat = data.Vendors[i].Stocks.First(s => s.MatNo == data.Reservations[j].MatNo);
                 double coeff = W_QTY + (W_VAL * Convert.ToDouble(mat.Offset));
+                coeff += W_QTY * mat.Priority / 2;
                 coeff += data.Vendors[i].Ability >= data.Reservations[j].Difficulty ? W_QTY : 0.0;
                 objective.SetCoefficient(x[i, j], coeff);
             }
