@@ -253,6 +253,8 @@ app.MapPost("/mip", async (MIPInputData data) =>
             }
         }
 
+        //增加一个偏移量，防止仅用一个供应商时，反而价值较低不分配
+        objective.SetOffset(W_PPL);
         objective.SetMaximization();
 
         Solver.ResultStatus resultStatus = solver.Solve();
