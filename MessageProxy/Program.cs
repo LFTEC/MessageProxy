@@ -233,16 +233,24 @@ app.MapPost("/mip", async (MIPInputData data) =>
             }
         }
 
+        Variable useVendorQuan = solver.MakeNumVar(0, data.Vendors.Count, "used_vendors");
+        Constraint penaltyConstraint = solver.MakeConstraint(-1, double.PositiveInfinity, "penalty_constraint");
+        penaltyConstraint.SetCoefficient(useVendorQuan, 1);
+        for(int i = 0; i < data.Vendors.Count; i++)
+        {
+            penaltyConstraint.SetCoefficient(y[i], -1);
+        }
+
         double W_QTY = data.Params.ParamQty;
         double W_PPL = data.Params.ParamVendor;
         double W_VAL = data.Params.ParamOffset;
 
         Objective objective = solver.Objective();
 
+        objective.SetCoefficient(useVendorQuan, -W_PPL);
+
         for (int i = 0; i < data.Vendors.Count; i++)
         {
-            objective.SetCoefficient(y[i], -W_PPL);
-
             for (int j = 0; j < data.Reservations.Count; j++)
             {
                 var mat = data.Vendors[i].Stocks.First(s => s.MatNo == data.Reservations[j].MatNo);
