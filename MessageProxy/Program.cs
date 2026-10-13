@@ -189,7 +189,7 @@ app.MapPost("/mip", async (MIPInputData data) =>
 {
     try
     {
-        Solver solver = Solver.CreateSolver("SCIP");
+        using Solver solver = Solver.CreateSolver("SCIP");
         if (solver == null)
         {
             return Results.BadRequest("无法创建求解器，请确保安装了 Google.OrTools");
