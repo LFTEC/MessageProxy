@@ -189,7 +189,7 @@ app.MapPost("/mip", async (MIPInputData data) =>
 {
     try
     {
-        Solver solver = Solver.CreateSolver("SCIP");
+        using Solver solver = Solver.CreateSolver("SCIP");
         if (solver == null)
         {
             return Results.BadRequest("无法创建求解器，请确保安装了 Google.OrTools");
@@ -286,9 +286,8 @@ app.MapPost("/mip", async (MIPInputData data) =>
                             {
                                 MatNo = data.Reservations[j].MatNo,
                                 AllocatedQuantity = count,
-                                ResNumber = data.Reservations[j].ResNumber,
-                                ResItem = data.Reservations[j].ResItem,
-                                VendorNumber = data.Vendors[i].VendorNumber
+                                ResKey = data.Reservations[j].ResKey,
+                                VendorKey = data.Vendors[i].VendorKey
                             });
 
                             totalAllocated += count;
@@ -327,8 +326,7 @@ public class MIPInputData
 
     public class Reservation
     {
-        public string ResNumber { get; set; } = string.Empty;
-        public string ResItem { get; set; } = string.Empty;
+        public string ResKey { get; set; } = string.Empty; 
         public string MatNo { get; set; } = string.Empty;
         public int Difficulty { get; set; }
 
@@ -337,7 +335,7 @@ public class MIPInputData
 
     public class Vendor
     {
-        public string VendorNumber { get; set; } = string.Empty;
+        public string VendorKey { get; set; } = string.Empty;
         public int Ability { get; set; }
         public List<Stock> Stocks { get; set; } = new List<Stock>();
     }
@@ -369,9 +367,8 @@ public class MIPOutputData
     {
         public string MatNo { get; set; } = string.Empty;
         public decimal AllocatedQuantity { get; set; }
-        public string ResNumber { get; set; } = string.Empty;
-        public string ResItem { get; set; } = string.Empty;
-        public string VendorNumber { get; set; } = string.Empty;
+        public string ResKey { get; set; } = string.Empty;
+        public string VendorKey { get; set; } = string.Empty;
     }
 }
 
