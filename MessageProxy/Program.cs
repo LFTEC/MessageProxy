@@ -1,4 +1,4 @@
-using Google.OrTools.LinearSolver;
+ï»¿using Google.OrTools.LinearSolver;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -192,7 +192,7 @@ app.MapPost("/mip", async (MIPInputData data) =>
         using Solver solver = Solver.CreateSolver("SCIP");
         if (solver == null)
         {
-            return Results.BadRequest("ÎŞ·¨´´½¨Çó½âÆ÷£¬ÇëÈ·±£°²×°ÁË Google.OrTools");
+            return Results.BadRequest("æ— æ³•åˆ›å»ºæ±‚è§£å™¨ï¼Œè¯·ç¡®ä¿å®‰è£…äº† Google.OrTools");
         }
 
         Variable[,] x = new Variable[data.Vendors.Count, data.Reservations.Count];
@@ -200,7 +200,7 @@ app.MapPost("/mip", async (MIPInputData data) =>
         {
             for (int j = 0; j < data.Reservations.Count; j++)
             {
-                x[i, j] = solver.MakeNumVar(0, double.PositiveInfinity, $"x_{i}_{j}");
+                x[i, j] = solver.MakeNumVar(0, data.Vendors[i].Stocks.Any(s => s.MatNo == data.Reservations[j].MatNo) ? Convert.ToDouble(data.Reservations[j].Quantity) : 0, $"x_{i}_{j}");
             }
         }
 
@@ -233,6 +233,19 @@ app.MapPost("/mip", async (MIPInputData data) =>
             }
         }
 
+        for (int j = 0; j < data.Reservations.Count; j++)
+        {
+            if (!data.Reservations[j].RequireSingleVendor || data.Reservations[j].Quantity <= 0) continue;
+            var single = solver.MakeConstraint(0, 1);
+            for (int i = 0; i < data.Vendors.Count; i++)
+            {
+                var choice = solver.MakeBoolVar($"choice_{i}_{j}");
+                single.SetCoefficient(choice, 1);
+                var full = solver.MakeConstraint(0, 0);
+                full.SetCoefficient(x[i, j], 1);
+                full.SetCoefficient(choice, -Convert.ToDouble(data.Reservations[j].Quantity));
+            }
+        }
         Variable useVendorQuan = solver.MakeNumVar(0, data.Vendors.Count, "used_vendors");
         Constraint penaltyConstraint = solver.MakeConstraint(-1, double.PositiveInfinity, "penalty_constraint");
         penaltyConstraint.SetCoefficient(useVendorQuan, 1);
@@ -253,11 +266,13 @@ app.MapPost("/mip", async (MIPInputData data) =>
         {
             for (int j = 0; j < data.Reservations.Count; j++)
             {
-                var mat = data.Vendors[i].Stocks.First(s => s.MatNo == data.Reservations[j].MatNo);
+                var mat = data.Vendors[i].Stocks.FirstOrDefault(s => s.MatNo == data.Reservations[j].MatNo);
+                if (mat == null) continue;
                 double coeff = W_QTY + (W_VAL * Convert.ToDouble(mat.Offset));
                 coeff += W_QTY * mat.Priority / 2;
                 coeff += data.Vendors[i].Ability >= data.Reservations[j].Difficulty ? W_QTY : 0.0;
                 objective.SetCoefficient(x[i, j], coeff);
+
             }
         }
 
@@ -303,12 +318,12 @@ app.MapPost("/mip", async (MIPInputData data) =>
         }
         else
         {
-            return Results.BadRequest("ÎŞ·¨ÕÒµ½×îÓÅ½â¡£");
+            return Results.BadRequest("æ— æ³•æ‰¾åˆ°æœ€ä¼˜è§£ã€‚");
         }
     }
     catch (Exception ex)
     {
-        return Results.BadRequest($"Çó½â¹ı³ÌÖĞ·¢Éú´íÎó: {ex.Message}");
+        return Results.BadRequest($"æ±‚è§£è¿‡ç¨‹ä¸­å‘ç”Ÿé”™è¯¯: {ex.Message}");
     }
 
 });
@@ -329,6 +344,7 @@ public class MIPInputData
         public string ResKey { get; set; } = string.Empty; 
         public string MatNo { get; set; } = string.Empty;
         public int Difficulty { get; set; }
+        public bool RequireSingleVendor { get; set; }
 
         public decimal Quantity { get; set; }
     }
@@ -491,15 +507,15 @@ internal class MessageProxyService: IMessageProxyService, IHostedService, IAsync
     {
         if (_connection is not null)
         {
-            // È·±£Á¬½ÓÔÚ±»ÊÍ·ÅÇ°ÒÑ¾­¹Ø±Õ
+            // ç¡®ä¿è¿æ¥åœ¨è¢«é‡Šæ”¾å‰å·²ç»å…³é—­
             if (_connection.IsOpen)
             {
                 await _connection.CloseAsync();
             }
-            _connection.Dispose(); // ÊÍ·Å×ÊÔ´
+            _connection.Dispose(); // é‡Šæ”¾èµ„æº
         }
 
-        // ±ÜÃâÖØ¸´ÖÕ½á
+        // é¿å…é‡å¤ç»ˆç»“
         GC.SuppressFinalize(this);
     }
 }

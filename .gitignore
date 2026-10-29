@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Local .NET CLI user directory
+/.dotnet-local/
+
+# Generated MIP test host
+/tests/generated/

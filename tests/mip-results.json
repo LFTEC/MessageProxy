@@ -1,0 +1,975 @@
+[
+  {
+    "name": "Single vendor fulfills entire demand",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 120
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 100,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Combined stock cannot fulfill special demand",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 0,
+      "totalQuantityAllocated": 0,
+      "allocations": []
+    }
+  },
+  {
+    "name": "Ordinary demand can split",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 2,
+      "totalQuantityAllocated": 100,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 40,
+          "resKey": "R1",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "M",
+          "allocatedQuantity": 60,
+          "resKey": "R1",
+          "vendorKey": "B"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Missing material cannot supply demand",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "X",
+              "quantity": 120
+            }
+          ],
+          "vendorKey": "A"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 0,
+      "totalQuantityAllocated": 0,
+      "allocations": []
+    }
+  },
+  {
+    "name": "Exact stock fulfills special demand",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            }
+          ],
+          "vendorKey": "A"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 100,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Ordinary demand reuses selected supplier",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "M",
+          "quantity": 20,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 120
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 20
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 120,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "M",
+          "allocatedQuantity": 20,
+          "resKey": "R2",
+          "vendorKey": "A"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Competing special demands respect stock",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 150
+            }
+          ],
+          "vendorKey": "A"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 100,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Zero quantity creates no allocation",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 0,
+          "requireSingleVendor": true
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            }
+          ],
+          "vendorKey": "A"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 0,
+      "totalQuantityAllocated": 0,
+      "allocations": []
+    }
+  },
+  {
+    "name": "M/N both suppliers have sufficient stock",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 120
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 100
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 120
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 100
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 180,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 80,
+          "resKey": "R2",
+          "vendorKey": "A"
+        }
+      ]
+    }
+  },
+  {
+    "name": "M/N only A can fulfill M and both can fulfill N",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 80
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 80
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 180,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 80,
+          "resKey": "R2",
+          "vendorKey": "A"
+        }
+      ]
+    }
+  },
+  {
+    "name": "M/N choose supplier with enough stock for both",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 30
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 80
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 180,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "B"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 80,
+          "resKey": "R2",
+          "vendorKey": "B"
+        }
+      ]
+    }
+  },
+  {
+    "name": "M/N selected supplier lacks N but combined N is sufficient",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 30
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 60
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 2,
+      "totalQuantityAllocated": 180,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 20,
+          "resKey": "R2",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 60,
+          "resKey": "R2",
+          "vendorKey": "B"
+        }
+      ]
+    }
+  },
+  {
+    "name": "M/N total N stock insufficient",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 100
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 30
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 20
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 2,
+      "totalQuantityAllocated": 150,
+      "allocations": [
+        {
+          "matNo": "M",
+          "allocatedQuantity": 100,
+          "resKey": "R1",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 30,
+          "resKey": "R2",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 20,
+          "resKey": "R2",
+          "vendorKey": "B"
+        }
+      ]
+    }
+  },
+  {
+    "name": "M/N no supplier can fulfill M even with sufficient combined M",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 80
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 80
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 1,
+      "totalQuantityAllocated": 80,
+      "allocations": [
+        {
+          "matNo": "N",
+          "allocatedQuantity": 80,
+          "resKey": "R2",
+          "vendorKey": "B"
+        }
+      ]
+    }
+  },
+  {
+    "name": "M/N neither material has sufficient stock",
+    "status": "PASS",
+    "error": "",
+    "request": {
+      "reservations": [
+        {
+          "resKey": "R1",
+          "matNo": "M",
+          "quantity": 100,
+          "requireSingleVendor": true
+        },
+        {
+          "resKey": "R2",
+          "matNo": "N",
+          "quantity": 80,
+          "requireSingleVendor": false
+        }
+      ],
+      "params": {
+        "paramOffset": 10,
+        "paramVendor": 1900,
+        "paramQty": 2000
+      },
+      "vendors": [
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 30
+            }
+          ],
+          "vendorKey": "A"
+        },
+        {
+          "stocks": [
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "M",
+              "quantity": 60
+            },
+            {
+              "priority": 0,
+              "offset": 0,
+              "matNo": "N",
+              "quantity": 20
+            }
+          ],
+          "vendorKey": "B"
+        }
+      ]
+    },
+    "response": {
+      "totalVendorsUsed": 2,
+      "totalQuantityAllocated": 50,
+      "allocations": [
+        {
+          "matNo": "N",
+          "allocatedQuantity": 30,
+          "resKey": "R2",
+          "vendorKey": "A"
+        },
+        {
+          "matNo": "N",
+          "allocatedQuantity": 20,
+          "resKey": "R2",
+          "vendorKey": "B"
+        }
+      ]
+    }
+  }
+]
